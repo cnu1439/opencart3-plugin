@@ -159,6 +159,7 @@ class ControllerExtensionPaymentBlockonomics extends Controller {
     $default_callback_url = $this->url->link('extension/payment/blockonomics/callback&secret='.$secret , $this->config->get('config_secure'));
     $default_callback_url = str_replace(HTTP_SERVER, HTTP_CATALOG, $default_callback_url);
     $default_callback_url = str_replace(HTTPS_SERVER, HTTPS_CATALOG, $default_callback_url);
+    $default_callback_url = str_replace('&amp;1', '', $default_callback_url);
 
     $this->setting('callback_url', $default_callback_url);
     $this->setting('callback_secret', $secret);
@@ -242,9 +243,10 @@ class ControllerExtensionPaymentBlockonomics extends Controller {
 		$default_callback_url = $this->url->link('extension/payment/blockonomics/callback&secret='.$secret , $this->config->get('config_secure'));
 		$default_callback_url = str_replace(HTTP_SERVER, HTTP_CATALOG, $default_callback_url);
 		$default_callback_url = str_replace(HTTPS_SERVER, HTTPS_CATALOG, $default_callback_url);
+		$default_callback_url = str_replace('&amp;1', '', $default_callback_url);
 
 		$data['default_callback_url'] = $default_callback_url;
-    $this->db->query("delete from oc_setting where code='blockonomics'");
+		$this->db->query("DELETE FROM ".DB_PREFIX."setting WHERE code = 'blockonomics'");
 		$this->load->model('setting/setting');
 		$default_settings = array(
 			'payment_blockonomics_token' => null,

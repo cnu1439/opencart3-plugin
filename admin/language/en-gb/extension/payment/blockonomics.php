@@ -38,7 +38,7 @@ $_['entry_callback_secret']  = 'Callback Secret';
 $_['entry_paid_status']      = 'Paid Status';
 $_['entry_confirmed_status'] = 'Confirmed Status';
 $_['entry_complete_status']  = 'Complete Status';
-$_['entry_callback_url']       = 'Notification URL';
+$_['entry_callback_url']       = 'Callback URL';
 $_['entry_api_key']       = 'Blockonomics API Key';
 $_['entry_debug']            = 'Debug Logging';
 $_['entry_name']             = 'Name';
@@ -50,7 +50,7 @@ $_['entry_send_server_info'] = 'Send Server Information';
 
 // Help
 $_['help_paid_status']       = 'A fully paid invoice awaiting confirmation';
-$_['help_confirmed_status']  = 'A confirmed invoice per Risk/Speed settings';
+$_['help_confirmed_status']  = 'Once confirmed Bitcoin transaction order status';
 $_['help_complete_status']   = 'An invoice that has been credited to your account';
 $_['help_callback_url']        = 'Blockonomics&#8217;s IPN will post invoice status updates to this URL';
 $_['help_api_key']        = 'Blockonimcs will provide API KEY in its settings to do API calls';

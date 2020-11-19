@@ -6,7 +6,7 @@
 class Blockonomics {
 
 	/** @var int $version */
-	public $version = '1.0.0';
+	public $version = '0.2.0';
 
 	/** @var Registry $registry */
 	private $registry;
@@ -37,7 +37,7 @@ class Blockonomics {
     //$this->blockonomics_websocket_url = 'ws://localhost:8080';
     $this->blockonomics_new_address_url = $blockonomics_base_url.'/api/new_address';
     $this->blockonomics_price_url = $blockonomics_base_url.'/api/price?currency=';
-    $this->setting('debug', 1);
+    $this->setting('debug', 0);
 	}
 
 	/**
@@ -53,12 +53,23 @@ class Blockonomics {
 
   public function getBTCPrice() {
     //Getting price
-    $options = array( 'http' => array( 'method'  => 'GET') );
-    $context = stream_context_create($options);
     $currency_code = $this->config->get('config_currency');
-    $contents = file_get_contents($this->blockonomics_price_url.$currency_code);
-    $priceObj = json_decode($contents);
-    return $priceObj->price;
+    $url = $this->blockonomics_price_url.$currency_code;
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+
+    $data = curl_exec($ch);
+    curl_close($ch);
+
+    $responseObj = json_decode($data);
+    if (!isset($responseObj)) {
+      return '';
+    }
+
+    return $responseObj->price;
   }
 
   /**
@@ -113,11 +124,21 @@ class Blockonomics {
     curl_close($ch);
 
     $responseObj = json_decode($data);
-    if (!isset($responseObj)) {
-      return '';
+    if($httpcode != 200) {
+      if (isset($responseObj->message)) {
+        if ($responseObj->message=='Could not find matching xpub') {
+          $responseObj->error = 'There is a problem in your callback url';
+        } else {
+          $responseObj->error = $responseObj->message;
+        }
+      }
+      if($httpcode == 401) {
+        $responseObj = new stdClass();
+        $responseObj->error = 'API Key is invalid';
+      }
     }
 
-    return $responseObj->address;
+    return $responseObj;
   }
 	/**
 	 * Constructs some helpful diagnostic info.
