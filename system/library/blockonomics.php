@@ -9,7 +9,7 @@ namespace Opencart\Extension\Blockonomics\System\Library;
 class Blockonomics {
 
 	/** @var int $version */
-	public $version = '0.2.3';
+	public $version = '4.0.1';
 
 	/** @var Registry $registry */
 	private $registry;
