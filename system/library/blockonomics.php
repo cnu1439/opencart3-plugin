@@ -3,10 +3,13 @@
 /**
  * Blockonomics Library for OpenCart
  */
+
+namespace Opencart\Extension\Blockonomics\System\Library;
+
 class Blockonomics {
 
 	/** @var int $version */
-	public $version = '1.0.0';
+	public $version = '4.0.1';
 
 	/** @var Registry $registry */
 	private $registry;
@@ -26,10 +29,10 @@ class Blockonomics {
 
 		// Setup encryption
 		$fingerprint = substr(sha1(sha1(__DIR__)), 0, 24);
-    $this->encryption = new Encryption($fingerprint);
+    $this->encryption = new \Opencart\System\Library\Encryption($fingerprint);
 
     // Setup logging
-		$this->logger = new Log('blockonomics.log');
+		$this->logger = new \Opencart\System\Library\Log('blockonomics.log');
 
     $blockonomics_base_url = 'https://www.blockonomics.co';
     $this->blockonomics_websocket_url = 'wss://www.blockonomics.co';
@@ -37,7 +40,7 @@ class Blockonomics {
     //$this->blockonomics_websocket_url = 'ws://localhost:8080';
     $this->blockonomics_new_address_url = $blockonomics_base_url.'/api/new_address';
     $this->blockonomics_price_url = $blockonomics_base_url.'/api/price?currency=';
-    $this->setting('debug', 1);
+    $this->setting('debug', 0);
 	}
 
 	/**
@@ -51,14 +54,56 @@ class Blockonomics {
 		return $this->registry->get($name);
 	}
 
+  /*
+   * Make a request using curl
+   */
+  public function doCurlCall($url, $post_content = '')
+  {
+      $ch = curl_init();
+      curl_setopt($ch, CURLOPT_URL, $url);
+      curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+      if ($post_content) {
+          curl_setopt($ch, CURLOPT_POST, 1);
+          curl_setopt($ch, CURLOPT_POSTFIELDS, $post_content);
+      }
+      curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+      curl_setopt(
+          $ch,
+          CURLOPT_HTTPHEADER,
+          [
+              'Authorization: Bearer ' . $this->setting('api_key'),
+              'Content-type: application/x-www-form-urlencoded',
+          ]
+      );
+      $data = curl_exec($ch);
+      $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+      curl_close($ch);
+
+      $responseObj = new \stdClass();
+      $responseObj->data = json_decode($data);
+      $responseObj->response_code = $httpcode;
+      return $responseObj;
+  }
+
   public function getBTCPrice() {
     //Getting price
-    $options = array( 'http' => array( 'method'  => 'GET') );
-    $context = stream_context_create($options);
     $currency_code = $this->config->get('config_currency');
-    $contents = file_get_contents($this->blockonomics_price_url.$currency_code);
-    $priceObj = json_decode($contents);
-    return $priceObj->price;
+    $url = $this->blockonomics_price_url.$currency_code;
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+
+    $data = curl_exec($ch);
+    curl_close($ch);
+
+    $responseObj = json_decode($data);
+    if (!isset($responseObj)) {
+      return '';
+    }
+
+    return $responseObj->price;
   }
 
   /**
@@ -94,31 +139,139 @@ class Blockonomics {
     }
   }
 
-  public function genBTCAddress(){
-    $url = $this->blockonomics_new_address_url."?match_callback=".$this->setting('callback_url');
+  /*
+   * Get new address from Blockonomics Api
+   */
+  public function getNewAddress($reset = false)
+  {
+      $api_key = $this->setting('api_key');
+      $callback_secret = $this->setting('callback_secret');
+
+      if ($reset) {
+          $get_params = "?match_callback=$callback_secret&reset=1";
+      } else {
+          $get_params = "?match_callback=$callback_secret";
+      }
+
+      $ch = curl_init();
+
+      curl_setopt($ch, CURLOPT_URL, 'https://www.blockonomics.co/api/new_address' . $get_params);
+      curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+      curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+
+      $header = 'Authorization: Bearer ' . $api_key;
+      $headers = [];
+      $headers[] = $header;
+      curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+      $contents = curl_exec($ch);
+      if (curl_errno($ch)) {
+          exit('Error:' . curl_error($ch));
+      }
+
+      $responseObj = json_decode($contents);
+      //Create response object if it does not exist
+      if (!isset($responseObj)) {
+          $responseObj = new \stdClass();
+      }
+      $responseObj->{'response_code'} = curl_getinfo($ch, CURLINFO_RESPONSE_CODE );
+      curl_close($ch);
+      return $responseObj;
+  }
+
+  public function get_callbacks(){
+    $url =  $this->blockonomics_get_callback_url;
 
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-    curl_setopt($ch, CURLOPT_POST, 1);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, "");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, array(
       'Authorization: Bearer '.$this->setting('api_key'),
       'Content-type: application/x-www-form-urlencoded'
     ));
 
-    $data = curl_exec($ch);
-    $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $callback_data = curl_exec($ch);
+    $callback_httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    $responseObj = json_decode($data);
-    if (!isset($responseObj)) {
-      return '';
+    $callback_responseObj = json_decode($callback_data);
+    $response["httpcode"] = $callback_httpcode;
+      foreach($callback_responseObj as $key => $value){
+        if(isset($value->callback)){
+          $response[$key] = new \stdClass();
+          $response[$key]->callback = $value->callback;
+          $response[$key]->address = $value->address;
+        }
+      }
+
+    return $response;
+  }
+
+  public function testsetup()
+  {
+    $api_key = $this->setting('api_key');
+    
+    if (!isset($api_key) || strlen($api_key) == 0) {
+      return 'api_key';
+    }
+    
+    $xpub_fetch_url = 'https://www.blockonomics.co/api/address?&no_balance=true&only_xpub=true&get_callback=true';
+    $set_callback_url = 'https://www.blockonomics.co/api/update_callback';
+    $error_str = '';
+
+    $response = $this->doCurlCall($xpub_fetch_url);
+
+    $secret = $this->setting('callback_secret');
+    $callback_url = htmlspecialchars_decode($this->setting('callback_url'));
+    
+    if (!isset($response->response_code)) {
+        $error_str = 'blockedHttps';
+    } elseif ($response->response_code == 401) {
+        $error_str = 'incorrectApi';
+    } elseif ($response->response_code != 200) {
+        $error_str = $response->data;
+    } elseif (!isset($response->data) || count($response->data) == 0) {
+        $error_str = 'noXpub';
+    } elseif (count($response->data) == 1) {
+        if (!$response->data[0]->callback || $response->data[0]->callback == null) {
+            //No callback URL set, set one
+            $post_content = '{"callback": "' . $callback_url . '", "xpub": "' . $response->data[0]->address . '"}';
+            $this->doCurlCall($set_callback_url, $post_content);
+        } elseif ($response->data[0]->callback != $callback_url) {
+            // Check if only secret differs
+            $base_url = substr($callback_url, 0, -48);
+            if (strpos($response->data[0]->callback, $base_url) !== false) {
+                //Looks like the user regenrated callback by mistake
+                //Just force Update_callback on server
+                $post_content = '{"callback": "' . $callback_url . '", "xpub": "' . $response->data[0]->address . '"}';
+                $this->doCurlCall($set_callback_url, $post_content);
+            } else {
+                $error_str = 'existingCallbackUrl';
+            }
+        }
+    } else {
+        $error_str = 'multipleXpubs';
+
+        foreach ($response->data as $resObj) {
+            if ($resObj->callback == $callback_url) {
+                // Matching callback URL found, set error back to empty
+                $error_str = '';
+            }
+        }
     }
 
-    return $responseObj->address;
+    if ($error_str == '') {
+        // Test new address generation
+        $new_addresss_response = $this->getNewAddress(true);
+        if ($new_addresss_response->response_code != 200) {
+            $error_str = $new_addresss_response->message;
+        }
+    }
+
+    return $error_str;
+
   }
+
 	/**
 	 * Constructs some helpful diagnostic info.
 	 * @return string
@@ -164,4 +317,19 @@ class Blockonomics {
 		// Get the setting
 		return $this->config->get($key);
 	}
+
+  public function get_crypto_rate_from_params($value, $satoshi) {
+    // Crypto Rate is re-calculated here and may slightly differ from the rate provided by Blockonomics
+    // This is required to be recalculated as the rate is not stored anywhere in $order, only the converted satoshi amount is.
+    // This method also helps in having a constant conversion and formatting for both JS and NoJS Templates avoiding the scientific notations.
+    return number_format($value*1.0e8/$satoshi, 2, '.', '');
+  }
+
+  public function fix_displaying_small_values($satoshi){
+    if ($satoshi < 10000){
+      return rtrim(number_format($satoshi/1.0e8, 8),0);
+    } else {
+      return $satoshi/1.0e8;
+    }
+  }
 }
